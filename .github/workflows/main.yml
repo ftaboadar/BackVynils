@@ -2,9 +2,9 @@ name: CI & Deploy (Next.js → Heroku)
 
 on:
   pull_request:
-    branches: ["develop"]
+    branches: ["master"]
   push:
-    branches: ["develop"]
+    branches: ["master"]
 
 concurrency:
   group: heroku-dev-${{ github.ref }}
