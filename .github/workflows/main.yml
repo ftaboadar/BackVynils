@@ -58,7 +58,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      # --- Despliegue a Heroku (Node/Next.js) ---
       - name: Install Heroku CLI
         run: curl https://cli-assets.heroku.com/install-ubuntu.sh | sh
 
