@@ -71,7 +71,7 @@ jobs:
 
       - name: Set remote & deploy
         env:
-          HEROKU_APP_NAME: recetario-dev   # cambia si tu app se llama distinto
+          HEROKU_APP_NAME: vinyls-backend
         run: |
           heroku git:remote --app "$HEROKU_APP_NAME"
           # Asegura que Heroku use Node buildpack si no está configurado
