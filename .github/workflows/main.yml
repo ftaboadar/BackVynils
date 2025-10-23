@@ -1,0 +1,97 @@
+name: CI & Deploy (Next.js → Heroku)
+
+on:
+  pull_request:
+    branches: ["develop"]
+  push:
+    branches: ["develop"]
+
+concurrency:
+  group: heroku-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test_build_deploy:
+    name: Lint + Tests + Build + Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Create .env.local
+        run: |
+          {
+            echo "DB_HOST=${{ secrets.DB_HOST }}";
+            echo "DB_USER=${{ secrets.DB_USER }}";
+            echo "DB_PASS=${{ secrets.DB_PASS }}";
+            echo "DB_NAME=${{ secrets.DB_NAME }}";
+          } > .env.local
+
+      - name: Lint
+        run: |
+          if npm run | grep -q "lint"; then
+            npm run lint
+          else
+            echo "No lint script; skipping."
+          fi
+
+      - name: Tests
+        run: |
+          if npm run | grep -q "test"; then
+            npm test --if-present
+          else
+            echo "No test script; skipping."
+          fi
+
+      - name: Build
+        run: npm run build
+
+      # --- Despliegue a Heroku (Node/Next.js) ---
+      - name: Install Heroku CLI
+        run: curl https://cli-assets.heroku.com/install-ubuntu.sh | sh
+
+      - name: Heroku login
+        run: |
+          heroku auth:token >/dev/null 2>&1 || true
+          heroku whoami || true
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
+
+      - name: Write Heroku netrc
+        shell: bash
+        run: |
+          {
+            printf 'machine api.heroku.com\n'
+            printf '  login %s\n' "$HEROKU_EMAIL"
+            printf '  password %s\n' "$HEROKU_API_KEY"
+            printf 'machine git.heroku.com\n'
+            printf '  login %s\n' "$HEROKU_EMAIL"
+            printf '  password %s\n' "$HEROKU_API_KEY"
+          } > ~/.netrc
+          chmod 600 ~/.netrc
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
+
+      - name: Set remote & deploy
+        env:
+          HEROKU_APP_NAME: recetario-dev   # cambia si tu app se llama distinto
+        run: |
+          heroku git:remote --app "$HEROKU_APP_NAME"
+          # Asegura que Heroku use Node buildpack si no está configurado
+          heroku buildpacks:add -i 1 heroku/nodejs || true
+          # Empuja el código; Heroku hará su propio build (ejecutará npm install + build/postbuild)
+          git push heroku HEAD:main -f
